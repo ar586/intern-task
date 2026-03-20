@@ -8,6 +8,7 @@ class Keyword(models.Model):
         return self.name
 
 class ContentItem(models.Model):
+    external_id = models.CharField(max_length=255, unique=True, default='')
     title = models.CharField(max_length=512)
     source = models.CharField(max_length=100)
     body = models.TextField()

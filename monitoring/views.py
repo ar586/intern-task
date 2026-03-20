@@ -14,7 +14,7 @@ class FlagViewSet(viewsets.ModelViewSet):
     queryset = Flag.objects.all().order_by('-created_at')
     
     def get_serializer_class(self):
-        if self.request.method in ['PUT', 'PATCH']:
+        if self.request.method == 'PATCH':
             return FlagUpdateSerializer
         return FlagSerializer
 
@@ -26,8 +26,14 @@ def trigger_scan(request):
     Triggers a scan against the external/mock content source.
     """
     source = request.data.get('source', 'mock')
-    results = run_scan(source=source)
-    return Response({
-        "message": "Scan completed.",
-        "flags_created_or_updated": results['processed']
-    }, status=status.HTTP_200_OK)
+    try:
+        results = run_scan(source=source)
+        return Response({
+            "message": "Scan completed.",
+            "flags_created_or_updated": results['processed']
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            "error": "Scan failed.",
+            "detail": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

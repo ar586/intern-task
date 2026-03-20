@@ -24,21 +24,26 @@ This is a backend system built with Django and Django REST Framework that monito
    ```bash
    python manage.py migrate
    ```
-5. **Start the development server**:
+5. **Run Tests**:
+   The logic is covered by automated unit tests.
+   ```bash
+   python manage.py test
+   ```
+6. **Start the development server**:
    ```bash
    python manage.py runserver
    ```
 
-## Assumptions and Trade-offs
-* **External Source**: For simplicity and test predictability, I opted for a **mock hardcoded payload** in `services.py`. To fetch from a real source, one simply updates the `fetch_content()` function to use the `requests` library.
+## Assumptions, Trade-offs & Architecture
+* **External Source & Deduplication**: I opted for a mock payload in `services.py`. Content duplication is prevented by using a unique `external_id` as a stable identifier for each article, ensuring title edits don't spawn duplicate `ContentItem` instances into the database.
 * **Database**: SQLite is used per the requirements. For production, PostgreSQL would be ideal.
-* **Matching Logic**: The baseline behavior searches for EXACT full-keyword matches in the title, then partial substrings in the title, and finally substrings in the body. Casing is ignored via `.lower()`.
-* **Suppression Rule Logic**: 
-  When the reviewer marks a flag as `irrelevant`, it remains `irrelevant` indefinitely. When `POST /scan/` is triggered:
-  - If the flag status is `irrelevant`, the system compares `flag.content_last_updated` against the new `last_updated` timestamp of the fetched content.
-  - If the content has not been updated since the flag was evaluated, the scan skips it (Suppression).
-  - If the content *was* updated, the flag's status is reset to `pending` and its score is re-evaluated.
-* **Separation of Concerns**: Django models handle data shapes. DRF handles API validation/routing. Pure business logic parsing/scoring/suppression was extracted perfectly into `monitoring/services.py`.
+* **Matching Logic**: 
+  - Score 100: **Exact whole-word match** in the title (checked efficiently via regex boundaries).
+  - Score 70: Partial substring match in the title.
+  - Score 40: Substring match anywhere in the body.
+* **Suppression Rule**: 
+  When the reviewer marks a flag as `irrelevant`, it remains `irrelevant` indefinitely. On subsequent scans (`POST /scan/`), the logic compares `flag.content_last_updated` against the article's `last_updated`. The flag is ignored (*suppressed*) unless the article content actually changed since the human review. Additionally, if the flag is `relevant` or `pending`, it is only overwritten if the underlying content has actually been updated, preserving the reviewer's work.
+* **Separation of Concerns**: Django models handle data shapes. DRF handles API validation/routing. Pure business logic parsing/scoring/suppression was extracted perfectly into `monitoring/services.py`. All API errors explicitly return standard JSON 500 responses instead of raw Django traces.
 
 ## Example cURL Requests
 
